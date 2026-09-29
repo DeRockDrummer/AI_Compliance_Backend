@@ -1,0 +1,24 @@
+# Query: backend.app
+# ContextLines: 1
+
+4 results - 4 files
+
+app\agent\routes.py:
+  3  
+  4: # ⭐ FIXED IMPORT — backend.app → app
+  5  from app.core.security import verify_token
+
+app\dashboard\routes.py:
+  2  
+  3: # ⭐ FIXED IMPORT — backend.app → app
+  4  from app.core.security import verify_token
+
+app\report\docx_service.py:
+  1  from docx import Document
+  2: from app.reports.report_template import render_report
+  3  from io import BytesIO
+
+app\report\pdf_service.py:
+  1  from fpdf import FPDF
+  2: from app.reports.report_template import render_report
+  3  
