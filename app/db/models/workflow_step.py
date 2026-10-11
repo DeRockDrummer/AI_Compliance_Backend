@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -13,9 +14,16 @@ class WorkflowStep(Base):
     # Indexed for faster workflow queries
     workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False, index=True)
 
-    # Step metadata
+    # Basic step metadata (existing)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
+
+    # NEW FIELDS FOR OPTION B (full agent instructions + metadata)
+    title = Column(String, nullable=True)                # Human-readable step title
+    instructions = Column(Text, nullable=True)           # Agent instructions
+    agent = Column(String, nullable=True)                # e.g. "business", "email", "reporting"
+    action = Column(String, nullable=True)               # e.g. "leadgen", "outreach", "followup"
+    metadata = Column(JSONB, nullable=True)              # Arbitrary JSON parameters
 
     # Status must match analytics + frontend expectations
     status = Column(String, nullable=False, default="pending")

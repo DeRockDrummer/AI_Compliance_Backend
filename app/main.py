@@ -15,6 +15,25 @@ app = FastAPI(
 )
 
 # ============================================================
+# CORS CONFIGURATION — MUST BE FIRST MIDDLEWARE
+# ============================================================
+
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://stewartcomplianceai.com",
+    "https://www.stewartcomplianceai.com",
+    "https://api.stewartcomplianceai.com",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ============================================================
 # ROUTER IMPORTS
 # ============================================================
 
@@ -40,7 +59,7 @@ from app.api.routes.users import router as users_router
 from app.api.routes.workflows import router as workflows_router
 from app.api.routes.analytics import router as analytics_router
 
-# ⭐ Audit logs (frontend expects /audit_logs)
+# Audit logs
 from app.api.routes.audit_logs import router as audit_logs_router
 
 # Onboarding
@@ -60,6 +79,12 @@ from app.api.routes.admin_dashboard import router as admin_dashboard_router
 
 # Public workflow API
 from app.api.workflows_public import router as workflows_public_router
+
+# ⭐ Local workflow router
+from backend.routers.workflows import router as local_workflows_router
+
+# ⭐ NEW — Business Promotion Agents Router
+from app.api.routes.business_promotion import router as business_promotion_router
 
 # ============================================================
 # MODEL IMPORTS
@@ -83,22 +108,6 @@ def create_tables():
 @app.on_event("startup")
 def on_startup():
     create_tables()
-
-# ============================================================
-# CORS CONFIGURATION
-# ============================================================
-
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ============================================================
 # HTTPS ENFORCEMENT
@@ -156,12 +165,11 @@ app.include_router(admin_router, prefix="/admin")
 # User management
 app.include_router(users_router, prefix="/admin/users")
 
-
 # Admin workflow management
 app.include_router(workflows_router, prefix="/admin/workflows")
 app.include_router(analytics_router, prefix="/admin/analytics")
 
-# ⭐ Audit logs route (frontend calls /audit_logs)
+# Audit logs
 app.include_router(audit_logs_router, prefix="/audit_logs")
 
 # Onboarding
@@ -181,6 +189,12 @@ app.include_router(admin_dashboard_router)
 
 # Public workflow API
 app.include_router(workflows_public_router)
+
+# Local workflows router
+app.include_router(local_workflows_router)
+
+# ⭐ NEW — Business Promotion Agents
+app.include_router(business_promotion_router, prefix="/agent/business")
 
 # ============================================================
 # OPENAPI SECURITY SCHEME — JWT BEARER ONLY

@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # ============================================================
     # DATABASE
     # ============================================================
-    DATABASE_URL: str = Field(
+    database_url: str = Field(
         default="sqlite:///./app.db",
         description="SQLAlchemy database connection string"
     )
@@ -14,18 +14,21 @@ class Settings(BaseSettings):
     # ============================================================
     # SECURITY / JWT
     # ============================================================
-    SECRET_KEY: str = Field(
+    jwt_secret_key: str = Field(
         default="CHANGE_ME_IN_ENV",
         description="JWT signing key"
     )
-    ALGORITHM: str = Field(default="HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60)
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30)
+    jwt_algorithm: str = Field(
+        default="HS256",
+        description="JWT signing algorithm"
+    )
+    access_token_expire_minutes: int = Field(default=60)
+    refresh_token_expire_days: int = Field(default=30)
 
     # ============================================================
     # ENVIRONMENT
     # ============================================================
-    ENV: str = Field(
+    env: str = Field(
         default=os.getenv("ENV", "development"),
         description="Environment mode: development | production"
     )
@@ -33,7 +36,7 @@ class Settings(BaseSettings):
     # ============================================================
     # CORS
     # ============================================================
-    FRONTEND_URL: str = Field(
+    frontend_url: str = Field(
         default="http://localhost:3000",
         description="Allowed CORS origin for frontend"
     )
@@ -41,8 +44,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        # ⭐ THIS IS THE MAGIC FIX ⭐
+        # Allow uppercase environment variables to map to lowercase fields
+        case_sensitive = False
 
 settings = Settings()
 
-print(f"[CONFIG] Loaded environment: {settings.ENV}")
-print(f"[CONFIG] SECRET_KEY loaded: {settings.SECRET_KEY[:8]}********")
+print(f"[CONFIG] Loaded environment: {settings.env}")
+print(f"[CONFIG] JWT key loaded: {settings.jwt_secret_key[:8]}********")

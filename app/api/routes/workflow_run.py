@@ -6,37 +6,32 @@ from app.db.models.workflow import Workflow
 from app.db.models.workflow_step import WorkflowStep
 from app.db.models.audit_log import AuditLog
 
-# ⭐ Your real workflow engine
-from app.core.workflow_agent_engine import run_workflow_triggers
+# Import your agents
+from app.agents.business_agent import BusinessAgent
+from app.agents.email_agent import EmailAgent
+from app.agents.reporting_agent import ReportingAgent
 
-router = APIRouter(prefix="/workflows", tags=["Workflow Execution"])
+router = APIRouter(prefix="/admin/workflows", tags=["Admin Workflows"])
 
 
-@router.post("/{workflow_id}/run")
-def run_workflow_now(workflow_id: int, db: Session = Depends(get_db)):
+# Agent registry for dynamic loading
+AGENT_REGISTRY = {
+    "business": BusinessAgent(),
+    "email": EmailAgent(),
+    "reporting": ReportingAgent(),
+}
+
+
+@router.post("/run/{workflow_id}")
+def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
     """
-    Run ALL workflow steps (full execution).
-    This triggers all agents in order and updates step statuses.
+    Execute a workflow step-by-step using agent/action metadata.
     """
 
     workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    # Log start
-    db.add(AuditLog(
-        action="workflow_run_started",
-        resource_type="workflow",
-        resource_id=workflow_id,
-        user_id=1,
-        details=f"Full workflow execution started"
-    ))
-    db.commit()
-
-    # ⭐ Run your actual workflow engine
-    run_workflow_triggers(db, workflow_id, user_id=1)
-
-    # Collect updated step statuses
     steps = (
         db.query(WorkflowStep)
         .filter(WorkflowStep.workflow_id == workflow_id)
@@ -44,33 +39,96 @@ def run_workflow_now(workflow_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
-    step_results = [
-        {
-            "step_id": step.id,
-            "step_name": step.name,
-            "status": step.status
-        }
-        for step in steps
-    ]
+    if not steps:
+        raise HTTPException(status_code=400, detail="Workflow has no steps")
 
-    # Determine workflow status
-    incomplete = any(step.status != "completed" for step in steps)
+    results = []
 
-    if not incomplete:
-        workflow.status = "completed"
+    for step in steps:
+        step.status = "in_progress"
         db.commit()
 
-        db.add(AuditLog(
-            action="workflow_completed",
-            resource_type="workflow",
-            resource_id=workflow_id,
-            user_id=1,
-            details="Workflow fully completed"
-        ))
-        db.commit()
+        agent_name = step.agent
+        action_name = step.action
+
+        # Validate agent/action
+        if not agent_name or not action_name:
+            step.status = "failed"
+            db.commit()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Step {step.id} missing agent/action fields"
+            )
+
+        agent = AGENT_REGISTRY.get(agent_name)
+        if not agent:
+            step.status = "failed"
+            db.commit()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Agent '{agent_name}' not found"
+            )
+
+        action = getattr(agent, action_name, None)
+        if not action:
+            step.status = "failed"
+            db.commit()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Action '{action_name}' not found on agent '{agent_name}'"
+            )
+
+        # Execute agent action
+        try:
+            output = action(
+                instructions=step.instructions,
+                metadata=step.metadata
+            )
+
+            step.status = "completed"
+            db.commit()
+
+            results.append({
+                "step_id": step.id,
+                "title": step.title,
+                "agent": agent_name,
+                "action": action_name,
+                "output": output
+            })
+
+            # Log execution
+            db.add(AuditLog(
+                action="workflow_step_executed",
+                resource_type="workflow_step",
+                resource_id=step.id,
+                user_id=1,
+                details=f"Executed {agent_name}.{action_name} with metadata {step.metadata}"
+            ))
+            db.commit()
+
+        except Exception as e:
+            step.status = "failed"
+            db.commit()
+
+            db.add(AuditLog(
+                action="workflow_step_failed",
+                resource_type="workflow_step",
+                resource_id=step.id,
+                user_id=1,
+                details=str(e)
+            ))
+            db.commit()
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Step {step.id} failed: {str(e)}"
+            )
+
+    workflow.status = "completed"
+    db.commit()
 
     return {
         "workflow_id": workflow_id,
-        "workflow_status": workflow.status,
-        "steps": step_results
+        "status": "completed",
+        "results": results
     }
